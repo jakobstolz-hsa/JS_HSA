@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileHunter//260309//JS#384</title>
+
+<style>
+body{font-family:verdana,sans-serif;margin:20px;background:#f4f6f8;color:#3A3A3A}
+h1
+{margin-bottom:20px;font-size:30px;margin-top:30px;
+}
+
+h2
+{margin-bottom:60px;font-size:23px;
+}
+
+.controls{
+display:flex;
+gap:10px;
+align-items:center;
+flex-wrap:wrap;
+margin-bottom:15px
+}
+
+button{
+padding:8px 14px;
+font-size:14px;
+cursor:pointer;
+border:none;
+border-radius:6px;
+background:#F15A23;
+color:white
+}
+
+button:hover{background:#F29978}
+
+.copy-btn{
+background:#FF6B35;
+padding:6px 10px;
+font-size:12px
+}
+
+.copy-btn:hover{background:#F29978}
+
+input[type="file"],input[type="text"]{padding:6px}
+
+.drop-zone{
+border:2px dashed #F15A23;
+border-radius:10px;
+padding:25px;
+text-align:center;
+background:#fff;
+color:grey;
+margin-bottom:15px;
+transition:background .2s,border-color .2s
+}
+
+.drop-zone.dragover{
+background:#e9f3ff;
+border-color:#0056b3
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+margin-top:20px;
+background:white;
+border-radius:8px;
+overflow:hidden
+}
+
+th,td{
+padding:10px;
+border-bottom:1px solid #ddd;
+text-align:left
+}
+
+th{
+background:#f1f1f1;
+position:sticky;
+top:0;
+z-index:1
+}
+
+th.sortable{cursor:pointer}
+
+tr:hover{background:#f9f9f9}
+
+.status{font-size:13px;margin-top:10px}
+.stats{margin-top:10px;font-size:13px}
+
+mark{
+background:#ffe08a;
+padding:1px 2px;
+border-radius:3px
+}
+</style>
+</head>
+
+<body>
+
+
+
+<h1>Hümmer Söllner Architekten</h1>
+
+<h2>File Hunter</h2>
+
+
+
+<div class="controls">
+
+<inputOFF type="file" id="fileInput" accept=".txt">
+
+<buttonOFF onclickOFF="loadSelectedFileOFF()"></button>
+
+<button onclick="sortByExtension()">Nach Dateiendung sortieren</button>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+<label>Sortierung nach Datei-Endung:</label>
+<input type="text" id="sortRule" maxlength="17" placeholder="csv,txt">
+<button onclick="applySortRule()">Anwenden</button>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+<label>Volltextsuche:</label>
+<input type="text" id="searchText" placeholder="Suchbegriff" oninput="liveSearch()">
+<button onclick="resetSearch()">Suche zurücksetzen</button>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+
+<label>Datei Präfix:</label>
+<input type="text" id="fileNameInput" placeholder="Präfix_">
+
+<button onclick="saveHTML()">Aktuelle Ansicht als html speichern</button>
+
+</div>
+
+<div id="dropZone" class="drop-zone">Da "3_Path_Source.txt" neischiem odder irchend an annern *.txt Scheiß. z.B.: Liste der besten Brauerein Metalfrankens, odder Cattering Liste von Söder, obber BigDäida kunni ned! Vleicht doch besser nedm Söder sei Fressliste, ned desmerdes do no alles abfaggelt.</div>
+
+<div class="status" id="status">Noch keine Datei geladen, neischiem!</div>
+<div class="stats" id="stats"></div>
+
+<table id="dataTable">
+
+<thead>
+<tr>
+<th>N°</th>
+<th>Datei Pfad</th>
+<th>Datei Name</th>
+<th class="sortable" onclick="sortByExtension()">Datei Typ ▲▼</th>
+<th>Pfad kopieren</th>
+</tr>
+</thead>
+
+<tbody></tbody>
+
+</table>
+
+<script>
+
+let embeddedPaths = `path/to/file1.txt
+path/to/file2.csv
+path/to/file3.docx
+`;
+
+let savedSearchText = "";
+let savedSortAscending = true;
+
+let originalPaths = [];
+let currentPaths = [];
+let sortAscending = savedSortAscending;
+
+const dropZone = document.getElementById("dropZone");
+
+dropZone.addEventListener("dragover",e=>{
+e.preventDefault();
+dropZone.classList.add("dragover");
+});
+
+dropZone.addEventListener("dragleave",()=>{
+dropZone.classList.remove("dragover");
+});
+
+dropZone.addEventListener("drop",e=>{
+e.preventDefault();
+dropZone.classList.remove("dragover");
+
+if(e.dataTransfer.files.length>0){
+handleFile(e.dataTransfer.files[0]);
+}
+
+});
+
+function loadSelectedFile(){
+
+const input=document.getElementById("fileInput");
+
+if(!input.files.length){
+alert("Please select a .txt file first.");
+return;
+}
+
+handleFile(input.files[0]);
+
+}
+
+function decodeFile(buffer){
+
+try{
+return new TextDecoder("utf-8",{fatal:true}).decode(buffer);
+}
+catch{
+return new TextDecoder("windows-1252").decode(buffer);
+}
+
+}
+
+function handleFile(file){
+
+const status=document.getElementById("status");
+
+if(!file.name.toLowerCase().endsWith(".txt")){
+status.textContent="Please provide a .txt file.";
+return;
+}
+
+const reader=new FileReader();
+
+status.textContent="Loading file...";
+
+reader.onload=e=>{
+
+const text=decodeFile(e.target.result);
+
+embeddedPaths=text;
+
+originalPaths=text.split(/\r?\n/)
+.map(v=>v.trim())
+.filter(v=>v.length>0);
+
+currentPaths=[...originalPaths];
+
+populateTable(currentPaths);
+updateStats(currentPaths);
+
+status.textContent= ""+currentPaths.length+" Pfade aus der Datei -> "+file.name+" <- geladen (Datei intern eingebunden)";
+
+};
+
+reader.readAsArrayBuffer(file);
+
+}
+
+function getFileName(path){
+return path.split(/[\\/]/).pop();
+}
+
+function getExtension(path){
+
+const fileName=getFileName(path);
+const parts=fileName.split('.');
+
+return parts.length>1 ? parts.pop().toLowerCase() : '';
+
+}
+
+function sortByExtension(){
+
+if(!currentPaths.length)return;
+
+currentPaths.sort((a,b)=>{
+
+const extA=getExtension(a);
+const extB=getExtension(b);
+
+if(extA<extB) return sortAscending?-1:1;
+if(extA>extB) return sortAscending?1:-1;
+
+return a.localeCompare(b);
+
+});
+
+sortAscending=!sortAscending;
+
+populateTable(currentPaths);
+
+}
+
+function applySortRule(){
+
+if(!currentPaths.length)return;
+
+const rule=document.getElementById("sortRule").value.toLowerCase();
+
+if(rule.length>17){
+alert("Maximum 17 characters allowed.");
+return;
+}
+
+const rules=rule.split(',');
+
+currentPaths.sort((a,b)=>{
+
+const extA=getExtension(a);
+const extB=getExtension(b);
+
+const matchA=rules.includes(extA);
+const matchB=rules.includes(extB);
+
+if(matchA&&!matchB) return -1;
+if(!matchA&&matchB) return 1;
+
+return extA.localeCompare(extB);
+
+});
+
+populateTable(currentPaths);
+
+}
+
+function liveSearch(){
+
+const value=document.getElementById("searchText").value.toLowerCase();
+
+currentPaths=value
+? originalPaths.filter(p=>p.toLowerCase().includes(value))
+: [...originalPaths];
+
+populateTable(currentPaths);
+updateStats(currentPaths);
+
+}
+
+function resetSearch(){
+
+document.getElementById("searchText").value="";
+
+currentPaths=[...originalPaths];
+
+populateTable(currentPaths);
+updateStats(currentPaths);
+
+}
+
+function copyPath(path){
+navigator.clipboard.writeText(path);
+}
+
+function updateStats(paths){
+
+const stats={};
+
+paths.forEach(p=>{
+const ext=getExtension(p)||"(none)";
+stats[ext]=(stats[ext]||0)+1;
+});
+
+let text="Häufigkeit der Dateitypen: ";
+
+for(const k in stats){
+text+=k+":"+stats[k]+"  ";
+}
+
+document.getElementById("stats").textContent=text;
+
+}
+
+function highlight(text,search){
+
+if(!search) return text;
+
+const regex=new RegExp(`(${search})`,"gi");
+
+return text.replace(regex,"<mark>$1</mark>");
+
+}
+
+function populateTable(paths){
+
+const tbody=document.querySelector("#dataTable tbody");
+
+tbody.innerHTML="";
+
+const search=document.getElementById("searchText").value;
+
+paths.forEach((path,index)=>{
+
+const row=document.createElement("tr");
+
+const c1=document.createElement("td");
+const c2=document.createElement("td");
+const c3=document.createElement("td");
+const c4=document.createElement("td");
+const c5=document.createElement("td");
+
+c1.textContent=index+1;
+
+c2.innerHTML=highlight(path,search);
+
+c3.textContent=getFileName(path);
+
+c4.textContent=getExtension(path);
+
+const btn=document.createElement("button");
+
+btn.textContent="Pfad Kopieren";
+btn.className="copy-btn";
+btn.onclick=()=>copyPath(path);
+
+c5.appendChild(btn);
+
+row.appendChild(c1);
+row.appendChild(c2);
+row.appendChild(c3);
+row.appendChild(c4);
+row.appendChild(c5);
+
+tbody.appendChild(row);
+
+});
+
+}
+
+function saveHTML(){
+
+const searchText=document.getElementById("searchText").value;
+
+const baseName=
+document.getElementById("fileNameInput").value.trim() || "paths";
+
+const now=new Date();
+
+const pad=n=>n.toString().padStart(2,'0');
+
+const dateStr=
+`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+const timeStr=
+`${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+
+const safeSearch=
+searchText.replace(/[^a-z0-9_\-]/gi,'_');
+
+const fileName=
+`${baseName}_${dateStr}_${timeStr}${safeSearch ? "_"+safeSearch : ""}.html`;
+
+const htmlContent=document.documentElement.outerHTML;
+
+let newHtml=htmlContent.replace(
+
+/let embeddedPaths = `[\s\S]*?`;/,
+
+'let embeddedPaths = `' + embeddedPaths.replace(/`/g,'\\`') + '`;\n' +
+'let savedSearchText = `' + searchText.replace(/`/g,'\\`') + '`;\n' +
+'let savedSortAscending = ' + sortAscending + ';'
+
+);
+
+const blob=new Blob([newHtml],{type:'text/html'});
+
+const url=URL.createObjectURL(blob);
+
+const a=document.createElement('a');
+
+a.href=url;
+a.download=fileName;
+
+a.click();
+
+setTimeout(()=>URL.revokeObjectURL(url),100);
+
+}
+
+function init(){
+
+originalPaths=embeddedPaths
+.split(/\r?\n/)
+.map(v=>v.trim())
+.filter(v=>v.length>0);
+
+currentPaths=[...originalPaths];
+
+populateTable(currentPaths);
+updateStats(currentPaths);
+
+if(savedSearchText){
+
+document.getElementById("searchText").value=savedSearchText;
+
+liveSearch();
+
+}
+
+}
+
+init();
+
+</script>
+
+</body>
+</html>
